@@ -48,7 +48,10 @@ class OpenPose:
             pose, detected_map = self.preprocessor(input_image, hand_and_face=False)
 
             candidate = pose['bodies']['candidate']
-            subset = pose['bodies']['subset'][0][:18]
+            subset = pose['bodies']['subset']
+            if not len(subset):
+                raise ValueError("OpenPose detected no body in input image")
+            subset = subset[0][:18]
             for i in range(18):
                 if subset[i] == -1:
                     candidate.insert(i, [0, 0])
