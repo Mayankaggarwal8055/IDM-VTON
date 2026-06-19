@@ -37,9 +37,18 @@ def hole_fill(img):
     dst = cv2.bitwise_or(img_copy, img_inverse)
     return dst
 
+def _sorted_contours(mask):
+    """Return contours sorted top-to-bottom, left-to-right for determinism."""
+    contours, hierarchy = cv2.findContours(
+        mask.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1
+    )
+    contours = list(contours)
+    contours.sort(key=lambda c: (cv2.boundingRect(c)[1], cv2.boundingRect(c)[0]))
+    return contours
+
+
 def refine_mask(mask):
-    contours, hierarchy = cv2.findContours(mask.astype(np.uint8),
-                                           cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
+    contours = _sorted_contours(mask)
     area = []
     for j in range(len(contours)):
         a_d = cv2.contourArea(contours[j], True)
@@ -81,7 +90,8 @@ def get_mask_location(model_type, category, model_parse: Image.Image, keypoint: 
         parse_mask = (parse_array == 7).astype(np.float32) + \
                      (parse_array == 4).astype(np.float32) + \
                      (parse_array == 5).astype(np.float32) + \
-                     (parse_array == 6).astype(np.float32)
+                     (parse_array == 6).astype(np.float32) + \
+                     (parse_array == label_map["scarf"]).astype(np.float32)
 
         parser_mask_changeable += np.logical_and(parse_array, np.logical_not(parser_mask_fixed))
 

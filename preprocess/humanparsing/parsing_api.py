@@ -40,11 +40,20 @@ def get_palette(num_cls):
     return palette
 
 
+def _sorted_contours(mask):
+    """Return contours sorted top-to-bottom, left-to-right for determinism."""
+    contours, hierarchy = cv2.findContours(
+        mask.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1
+    )
+    contours = list(contours)
+    contours.sort(key=lambda c: (cv2.boundingRect(c)[1], cv2.boundingRect(c)[0]))
+    return contours
+
+
 def delete_irregular(logits_result):
     parsing_result = np.argmax(logits_result, axis=2)
     upper_cloth = np.where(parsing_result == 4, 255, 0)
-    contours, hierarchy = cv2.findContours(upper_cloth.astype(np.uint8),
-                                           cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
+    contours = _sorted_contours(upper_cloth)
     area = []
     for i in range(len(contours)):
         a = cv2.contourArea(contours[i], True)
@@ -55,8 +64,7 @@ def delete_irregular(logits_result):
         cY = int(M["m01"] / M["m00"])
 
     dresses = np.where(parsing_result == 7, 255, 0)
-    contours_dress, hierarchy_dress = cv2.findContours(dresses.astype(np.uint8),
-                                                       cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
+    contours_dress = _sorted_contours(dresses)
     area_dress = []
     for j in range(len(contours_dress)):
         a_d = cv2.contourArea(contours_dress[j], True)
@@ -90,8 +98,7 @@ def hole_fill(img):
     return dst
 
 def refine_mask(mask):
-    contours, hierarchy = cv2.findContours(mask.astype(np.uint8),
-                                           cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
+    contours = _sorted_contours(mask)
     area = []
     for j in range(len(contours)):
         a_d = cv2.contourArea(contours[j], True)
@@ -109,7 +116,7 @@ def refine_mask(mask):
 def refine_hole(parsing_result_filled, parsing_result, arm_mask):
     filled_hole = cv2.bitwise_and(np.where(parsing_result_filled == 4, 255, 0),
                                   np.where(parsing_result != 4, 255, 0)) - arm_mask * 255
-    contours, hierarchy = cv2.findContours(filled_hole, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
+    contours = _sorted_contours(filled_hole)
     refine_hole_mask = np.zeros_like(parsing_result).astype(np.uint8)
     for i in range(len(contours)):
         a = cv2.contourArea(contours[i], True)
