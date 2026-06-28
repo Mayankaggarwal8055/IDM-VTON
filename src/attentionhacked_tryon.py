@@ -330,6 +330,30 @@ class BasicTransformerBlock(nn.Module):
         cross_attention_kwargs = cross_attention_kwargs.copy() if cross_attention_kwargs is not None else {}
         gligen_kwargs = cross_attention_kwargs.pop("gligen", None)
 
+        # ── P0-3: Attention contribution probe ──────────────────────────
+        # Measure relative norm of garment features vs person features
+        # before self-attention fusion. Log sparingly (every 5th call)
+        # to avoid overwhelming output.
+        _p0_garment_feat = garment_features[curr_garment_feat_idx] if garment_features is not None else None
+        if _p0_garment_feat is not None and not hasattr(self, '_p0_call_count'):
+            self._p0_call_count = 0
+        if _p0_garment_feat is not None:
+            self._p0_call_count += 1
+            if self._p0_call_count % 5 == 0:
+                _p0_person_norm = float(norm_hidden_states.norm().item())
+                _p0_garment_norm = float(_p0_garment_feat.norm().item())
+                _p0_total = _p0_person_norm + _p0_garment_norm
+                _p0_ratio = _p0_garment_norm / max(_p0_total, 1e-8)
+                import logging as _p0_log
+                _p0_log.getLogger("idm-vton.worker.p0").info(
+                    "P0_ATTN_FUSION call=%d person_norm=%.4f garment_norm=%.4f "
+                    "ratio=%.6f person_seq=%d garment_seq=%d dim=%d",
+                    self._p0_call_count,
+                    _p0_person_norm, _p0_garment_norm, _p0_ratio,
+                    norm_hidden_states.shape[1] if norm_hidden_states.dim() >= 2 else 0,
+                    _p0_garment_feat.shape[1] if _p0_garment_feat.dim() >= 2 else 0,
+                    norm_hidden_states.shape[-1] if norm_hidden_states.dim() >= 2 else 0,
+                )
 
         modify_norm_hidden_states = torch.cat([norm_hidden_states,garment_features[curr_garment_feat_idx]], dim=1)
         curr_garment_feat_idx +=1

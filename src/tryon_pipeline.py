@@ -1783,15 +1783,27 @@ class StableDiffusionXLInpaintPipeline(
                 added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
                 if ip_adapter_image is not None:
                     added_cond_kwargs["image_embeds"] = image_embeds
-                # down,reference_features = self.UNet_Encoder(cloth,t, text_embeds_cloth,added_cond_kwargs= {"text_embeds": pooled_prompt_embeds_c, "time_ids": add_time_ids},return_dict=False)
+
+                # ── P0-1: GarmentNet instrumentation ──────────────────────
+                import time as _p0_time
+                _p0_gn_start = _p0_time.perf_counter()
                 down,reference_features = self.unet_encoder(cloth,t, text_embeds_cloth,return_dict=False)
-                # print(type(reference_features))
-                # print(reference_features)
+                _p0_gn_elapsed = (_p0_time.perf_counter() - _p0_gn_start) * 1000
                 reference_features = list(reference_features)
-                # print(len(reference_features))
-                # for elem in reference_features:
-                #     print(elem.shape)
-                # exit(1)
+
+                # Log GarmentNet details for P0 probe
+                _p0_cloth_shape = list(cloth.shape) if hasattr(cloth, 'shape') else []
+                _p0_feat_shapes = [list(f.shape) for f in reference_features]
+                _p0_feat_norms = [float(f.norm().item()) for f in reference_features]
+                import logging as _p0_logging
+                _p0_logger = _p0_logging.getLogger("idm-vton.worker.p0")
+                _p0_logger.info(
+                    "P0_GARMENTNET_CALL cloth_shape=%s features=%d elapsed_ms=%.1f "
+                    "feat_shapes=%s feat_norms=%s",
+                    _p0_cloth_shape, len(reference_features), _p0_gn_elapsed,
+                    _p0_feat_shapes, [round(n, 4) for n in _p0_feat_norms],
+                )
+
                 if self.do_classifier_free_guidance:
                     reference_features = [torch.cat([torch.zeros_like(d), d]) for d in reference_features]
 
